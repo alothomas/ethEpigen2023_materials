@@ -1,0 +1,13 @@
+---
+title: "assignment"
+author: "Aloïs Thomas"
+output: html_document
+---
+
+```{r}
+library(epiwraps)
+```
+
+```{r}
+sessionInfo()
+```
