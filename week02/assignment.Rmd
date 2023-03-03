@@ -1,0 +1,80 @@
+---
+title: "Week2: playing with annotations"
+author: "Aloïs Thomas"
+date: "3/3/2023"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(ensembldb)
+  library(GenomicRanges)
+  library(epiwraps)
+})
+```
+
+# Fetch the drosophila gene annotation (dna_sm)
+
+```{r}
+ah <- AnnotationHub()
+#display(ah)
+#q <- query(ah, c("Drosophila", "dna_sm", "BDGP6", "dna_sm", "2bit"))
+
+dna_sm_droso <- ah[["AH68358"]]
+dna_sm_droso
+```
+# Fetch Mouse annonation 2bit format (dna_sm)
+```{r}
+ah <- AnnotationHub()
+#display(ah)
+#q <- query(ah, c("Mus Musculus", "dna_sm", "release-102", "GRCm38", "2bit"))
+
+twoBit_mouse <- ah[["AH88478"]]
+twoBit_mouse
+```
+
+
+# Fetch the mouse annotation ensemble
+```{r}
+ah <- AnnotationHub()
+#display(ah)
+#q <- query(ah, c("Mus Musculus", "ensembl", "release-102", "GRCm38"))
+
+ensdb <- ah[["AH89211"]]
+ensdb
+```
+
+# Mouse EnsDb
+## Number of genes IDs/names:
+```{r}
+coding_gns <- genes(ensdb, filter = TxBiotypeFilter("protein_coding"))
+
+length(unique(coding_gns$gene_id))
+length(unique(coding_gns$gene_name))
+```
+
+
+## Histogram of spliced length of protein-coding transcripts
+
+```{r}
+#all transcripts of protein coding genes
+#txs <- transcripts(ensdb, filter=TxBiotypeFilter("protein_coding"))
+
+#get transcripts of exons of protein coding genes only
+exsPerTx <- exonsBy(ensdb, column=c("tx_id","tx_biotype"), 
+                    filter=TxBiotypeFilter("protein_coding"))
+
+txExlen <- sum(width(exsPerTx))
+
+
+hist(txExlen, breaks = 100, main = "Distribution of the length of the spliced protein coding transcripts", xlab = "length")
+
+
+```
+
+
+
+
+
+
