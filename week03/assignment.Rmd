@@ -1,0 +1,87 @@
+---
+title: "Assignment week 3"
+author: "Aloïs THOMAS"
+date: "3/10/2022"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)
+  library(rtracklayer)
+  library(Biostrings)
+  library(Rfastp)
+  library(epiwraps)
+})
+ah <- AnnotationHub()
+```
+
+# Downloading data of Drosophila ChIP-seq for the protein CTCF
+
+```{r, eval=FALSE}
+options(timeout=4600)
+dir.create("raw")
+download.file("https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz", dest="raw/CTCF.fastq.gz", mode = "wb")
+```
+# Trimming
+
+```{r}
+dir.create("rfastp.trimmed")
+qc <- lapply(c(CTCF="raw/CTCF.fastq.gz"), FUN=function(x){
+  Rfastp::rfastp(x, thread=6, overrepresentationAnalysis=TRUE,
+                 outputFastq=file.path("rfastp.trimmed/",gsub("\\.fastq\\.gz$","",basename(x))))
+})
+```
+
+### Generate plots of trimming
+```{r}
+Rfastp::curvePlot(qc$CTCF, curve="content_curves")
+```
+
+#Aligment
+### Making a genome map
+```{r, eval=FALSE}
+# we get the genome sequence from AnnotationHub
+genome <- ah[["AH49674"]]
+# we create a new directory that will contain the genome index
+dir.create("BDGP6_genome")
+# we write the genome sequence in fasta format
+export(import.2bit(genome), "BDGP6_genome/genome.fasta.gz", compress=TRUE)
+# we build a Rsubread index
+Rsubread::buildindex("BDGP6_genome/rsubread", reference="BDGP6_genome/genome.fasta.gz")
+```
+
+
+
+### Alignment
+
+```{r}
+dir.create("aligned")
+align.stats <- Rsubread::align(index="BDGP6_genome/rsubread", type="dna",
+                               readfile1=c("rfastp.trimmed/CTCF_R1.fastq.gz"), 
+                               output_file=c("aligned/CTCF.bam"), nthreads=6,
+                               sortReadsByCoordinates=TRUE)
+align.stats
+```
+According to the output, 91.8% reads were mapped (3504769 mapped reads in total)
+
+
+
+### Peak calling
+
+```{r}
+peaks <- callPeaks("aligned/CTCF.bam", fragLength=50L)
+#export bed file:
+#rtracklayer::export.bed(peaks, "peaks/peaks.bed")
+```
+2857 peaks have been found according to the peaks variable.
+
+
+```{r}
+#plotting one peak
+#head(peaks)
+region <- as.character(granges(peaks[1650]))
+plotSignalTracks(c(CTCF="aligned/CTCF.bam"), region=region, main = "Distribution of reads around peak 1650 for CTCF protein")
+
+```

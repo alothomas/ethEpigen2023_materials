@@ -23,7 +23,7 @@ q <- query(ah, c("Drosophila", "ensembl"))
 # to browse the AnnotationHub interactively:
 #display(ah)
 
-ensdb <- ah[["AH95713"]]
+ensdb <- ah[["AH89211"]]
 ensdb
 ```
 
