@@ -1,0 +1,70 @@
+---
+title: "Exercise week 5"
+author: "Aloïs THOMAS"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(ensembldb)
+  library(GenomicRanges)
+  library(epiwraps)
+  library(rtracklayer)
+  library(ggplot2)
+})
+ah <- AnnotationHub()
+```
+## Part 1
+# Loading peaks
+```{r}
+#H3K4me3
+download.file("https://www.encodeproject.org/files/ENCFF331RHM/@@download/ENCFF331RHM.bed.gz", "H3K4me3.bed.gz", mode = "wb")
+H3K4me3_peaks<- rtracklayer::import("H3K4me3.bed.gz", format="narrowPeak")
+#H3K27me3
+download.file("https://www.encodeproject.org/files/ENCFF105NKG/@@download/ENCFF105NKG.bed.gz", "H3K27me3.bed.gz", mode = "wb")
+H3K27me3_peaks<- rtracklayer::import("H3K27me3.bed.gz", format="narrowPeak")
+```
+#Length of Bivalent domains
+```{r}
+bivalent_domains <- H3K4me3_peaks[overlapsAny(H3K4me3_peaks, H3K27me3_peaks)]
+
+bival_length <- length(bivalent_domains)
+bival_length
+
+```
+
+
+## Part 2
+# Peaks loading of smooth muscle cells
+
+```{r}
+download.file("https://www.encodeproject.org/files/ENCFF817CHW/@@download/ENCFF817CHW.bed.gz", dest="H3K27me3.bed.gz")
+H3K27me3_peaks_sm<- rtracklayer::import("H3K27me3.bed.gz", format="narrowPeak")
+download.file("https://www.encodeproject.org/files/ENCFF714BRC/@@download/ENCFF714BRC.bed.gz", dest="H3K4me3.bed.gz")
+H3K4me3_peaks_sm<- rtracklayer::import("H3K4me3.bed.gz", format="narrowPeak")
+
+```
+#Overlaps calculation between sm H3K4me3, H3K27me3 and mESCs
+```{r}
+overlaps <- list(bivalent_domains, H3K27me3_peaks_sm, H3K4me3_peaks_sm)
+names(overlaps) <- c("overlap_ESC", "overlap_H3K27me3_sm", "overlap_H3K4me3_sm")
+regionUpset(overlaps[c(1,2,3)])
+```
+
+From the plot, we can see the following:
+
+52427 H3K27me3 sm domains, 26397 H3K4me3 domains and 2934 mESC domains which do not overlap between each other.
+
+22 domains are overlapping each other (mESCs and Sms)
+
+52 domains overlapping for mESC and H3K4me3 sm
+
+70 domains overlapping for mESC and H3K27me3 sm
+
+4237 domains overlapping for H3K27me3 sm and H3K4me3 sm 
+
+
+
+
+
