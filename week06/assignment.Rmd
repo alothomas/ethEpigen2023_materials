@@ -1,0 +1,101 @@
+---
+title: "Exercise week 6"
+author: "Aloïs THOMAS"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(GenomicRanges)
+  library(ggplot2)
+  #library(memes) # for the meme-based methods -- COMMENT OUT when using alternatives
+  library(motifmatchr)
+  library(Biostrings) # for handling sequences
+  library(MotifDb) # database of motifs
+  library(TFBSTools) # for handling some motif formats
+  library(universalmotif) # for converting motifs to various formats
+  library(PWMEnrich) # for R-based motif enrichment analysis
+  library(Rsamtools)
+  library(Biostrings)
+  library(BSgenome)
+
+})
+ah <- AnnotationHub(localHub = FALSE)
+```
+
+
+
+#1 Loading transcription factor CREB1 peaks from Mus Musculus myocyte cell type
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF599FYT/@@download/ENCFF599FYT.bed.gz", "CREB1.bed.gz", mode = "wb")
+CREB1_peaks<- rtracklayer::import("CREB1.bed.gz", format="narrowPeak")
+
+seqlevelsStyle(CREB1_peaks) <- "Ensembl"
+```
+
+
+```{r}
+peak_centers <- resize(CREB1_peaks, fix="center", width=100)
+# we get the genome sequence:
+ah <- AnnotationHub(localHub=FALSE)
+genome <- ah[["AH49723"]]
+
+# we get the sequences corresponding to the peak centers:
+peak_seqs <- Biostrings::getSeq(genome, peak_centers)
+peak_seqs
+as.character(peak_seqs[1])
+```
+
+
+# Motif scanning
+
+```{r}
+motifs <- query(MotifDb, "CREB1")
+names(motifs)
+motif <- motifs[["Hsapiens-HOCOMOCOv10-CREB1_HUMAN.H10MO.A"]]
+view_motifs(motif)
+```
+
+
+```{r}
+dir.create("GRCh38_genome")
+export(import.2bit(genome), "GRCh38_genome/genome.fasta.gz", compress=TRUE)
+bgzip("GRCh38_genome/genome.fasta.gz")
+```
+
+```{r}
+#Biostrings::writeXStringSet(rtracklayer::import(genome), "genome.fa")
+motif2 <- convert_motifs(motif, class="TFBSTools-PFMatrix")
+moi2 <- motifmatchr::matchMotifs(motif2, subject=peak_centers, genome=Rsamtools::FaFile("GRCh38_genome/genome.fasta.bgz"), out="positions")[[1]]
+head(moi2)
+```
+
+```{r}
+# peaks with motif:
+peaks_w_motif <- CREB1_peaks[overlapsAny(CREB1_peaks,moi2)]
+length(peaks_w_motif)
+length(CREB1_peaks)
+length(peaks_w_motif)/length(CREB1_peaks)
+```
+
+Of the length(CREB1_peaks) peaks, [length(peaks_w_motif)/length(CREB1_peaks)] contain a motif.
+
+
+#Proportion of overlaps of motifs in genome and peak file
+
+
+```{r}
+
+#just get the motif sequence in a string and it will work...
+genome_string <- readDNAStringSet("GRCh38_genome/genome.fasta.bgz")
+
+motifHits <- vmatchPattern(motif, genome_string)
+
+peakGranges <- with(CREB1_peaks, GRanges(Rle(seqnames), IRanges(start, end)))
+peakHits <- findOverlaps(motifHits, peakGranges)
+
+propHits <- length(unique(queryHits(peakHits))) / length(unique(subjectHits(peakHits)))
+
+```
+
