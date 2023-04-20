@@ -42,7 +42,7 @@ The first thing we do, then, is to extract the regions around the peaks, and the
 ```{r}
 peak_centers <- resize(peaks_chr1, fix="center", width=100)
 # we get the genome sequence:
-ah <- AnnotationHub(localHub=TRUE)
+ah <- AnnotationHub(localHub=FALSE)
 genome <- ah[["AH68356"]]
 
 # we get the sequences corresponding to the peak centers:
