@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
   library(epiwraps)
   library(AnnotationHub)
   library(MotifDb)
-  library(memes)
+  #library(memes)
   library(universalmotif)
   library(ensembldb)
   library(ggplot2)
@@ -24,6 +24,7 @@ ensdb <- ah[["AH89211"]] # mouse ensembldb object
 ## Download the data
 
 ```{r, eval=FALSE}
+options(timeout=100)
 download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "atac.chr19.bam")
 download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "atac.chr19.bam.bai")
 ```
@@ -37,6 +38,9 @@ unzip("w7_bw.zip")
 
 
 ## Preparing tracks
+
+Bam file: read with sequence on genome
+bigWig file: same as ban + contains additional info like coverage or something else
 
 ```{r}
 bam <- "atac.chr19.bam"
@@ -102,7 +106,7 @@ sm <- signal2Matrix(tracks, moi, w=5, extend=500)
 # plot the signals:
 plotEnrichedHeatmaps(sm, trim=0.95)
 
-# we renormalize using border backgrounds
+# we renormalize using border backgrounds (by default normlalized by coverage)
 smb <- renormalizeBorders(sm)
 plotEnrichedHeatmaps(smb, trim=0.95)
 
@@ -126,6 +130,7 @@ ggplot(d, aes(position, mean, colour=sample)) + geom_line(size=1.2)
 Or we could use a specialized function from the ATACseqQC package:
 
 ```{r}
+library(ATACseqQC)
 motifFootprint("atac.chr19.bam", motif, moi)
 ```
 
@@ -144,4 +149,4 @@ plotEnrichedHeatmaps(tss.smb, trim=0.95)
 ```
 
 
-
+for Mono centers: nucleosome after promoter is always positioned nicely
