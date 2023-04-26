@@ -1,0 +1,106 @@
+---
+title: "Exercise week 7"
+author: "Aloïs THOMAS"
+output: html_document
+---
+
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(AnnotationHub)
+  library(MotifDb)
+  #library(memes)
+  library(universalmotif)
+  library(ensembldb)
+  library(ggplot2)
+  ah <- AnnotationHub(localHub=TRUE)
+  ensdb <- ah[["AH89211"]] # mouse ensembldb object
+})
+```
+
+
+
+```{r}
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "atac.chr19.bam", mode="wb") 
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "atac.chr19.bam.bai", mode="wb")
+```
+
+```{r}
+#create NF cuts
+bam <- "atac.chr19.bam"
+
+epiwraps::bam2bw(bam, output_bw = "NF_cuts.bw", paired=TRUE, binWidth=1L, type="ends", minFragLength=30,                    maxFragLength=120, shift=c(4L,-5L), forceSeqlevelsStyle = "Ensembl")
+```
+
+
+```{r}
+#create mono_cuts
+epiwraps::bam2bw(bam, output_bw = "mono_cuts.bw", paired=TRUE, binWidth = 1L, type="ends", minFragLength = 140, maxFragLength = 220, shift=c(4L, -5L), forceSeqlevelsStyle = "Ensembl")
+```
+
+#Fetching motifs (KLF4, MAZ)
+```{r}
+#get chr19 seq
+genome <- ah[["AH68356"]]
+chr19 <- import(genome)["19"]
+```
+
+```{r}
+# get KLF4 motif
+KLF4motif <- query(MotifDb, c("KLF4","Mus"))[[1]]
+KLF4motif_conv <- convert_motifs(KLF4motif, class="TFBSTools-PFMatrix")
+
+#find motif occurences:
+#p-value cutoff to get smaller number of motifs with higher quality
+KLFmoi <- motifmatchr::matchMotifs(KLF4motif_conv, chr19, out="positions", p.cutoff=1e-4)[[1]]
+#convert to GRanges
+KLFmoi <- as(setNames(KLFmoi,names(chr19)), "GRanges")
+```
+
+```{r}
+#MAZ motif
+MAZmotif <- query(MotifDb, c("MAZ", "Mus"))[[1]]
+MAZmotif_conv <- convert_motifs(MAZmotif, class="TFBSTools-PFMatrix")
+
+#find motif occurences:
+MAZmoi <- motifmatchr::matchMotifs(MAZmotif_conv, chr19, out="positions", p.cutoff=1e-4)[[1]]
+MAZmoi <- as(setNames(MAZmoi, names(chr19)), "GRanges")
+```
+
+#Plotting signal around KLF4 motif
+
+```{r}
+#List of tracks
+KLFtracks <- c("NF cuts KLF4"="NF_cuts.bw", "Mono cuts KLF4"="mono_cuts.bw")
+#Extract signal around motifs
+smKLF <- signal2Matrix(KLFtracks, KLFmoi, w=5, extend=500)
+
+nf <- bwNormFactors(KLFtracks, wsize=5L, useSeqLevels="19", nwind=5000L)
+# then we apply the normalization factors:
+smb <- rescaleSignalMatrices(smKLF, nf)
+plotEnrichedHeatmaps(smb, trim=0.95,colors = c("white", "darkred"))
+```
+
+#Plotting signal around MAZ motif
+
+```{r}
+#List of tracks
+MAZtracks <- c("NF cuts MAZ"="NF_cuts.bw", "Mono cuts MAZ"="mono_cuts.bw")
+#Extract signal around motifs
+smMAZ <- signal2Matrix(MAZtracks, MAZmoi, w=5, extend=500)
+
+nf <- bwNormFactors(MAZtracks, wsize=5L, useSeqLevels="19", nwind=5000L)
+# then we apply the normalization factors:
+smb <- rescaleSignalMatrices(smMAZ, nf)
+plotEnrichedHeatmaps(smb, trim=0.95,colors = c("white", "darkred"))
+```
+
+
+
+
+
+
+
+

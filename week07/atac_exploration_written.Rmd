@@ -131,11 +131,7 @@ Or we could use a specialized function from the ATACseqQC package:
 
 ```{r}
 library(ATACseqQC)
-<<<<<<< HEAD
-motifFootprint("atac.chr19.bam", motif, moi)
-=======
 epiwraps::motifFootprint("atac.chr19.bam", motif, moi)
->>>>>>> 2eb0d1856b4f33b20d710349b8730ee393aa5257
 ```
 
 ## Signal around TSS
