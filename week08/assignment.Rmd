@@ -1,0 +1,138 @@
+---
+title: "Exercise week 8"
+author: "Aloïs THOMAS"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(motifmatchr)
+  library(MotifDb)
+  library(universalmotif)
+  library(sechm)
+  library(BiocParallel)
+  library(ggplot2)
+  library(chromVAR) # for motif accessibility estimation
+  library(SummarizedExperiment) # data structure
+  library(limma) # for statistical analysis
+
+})
+# to control multithreading, unix users can use:
+# register(MulticoreParam(4))
+# for windows users, rather one of the following:
+register(SerialParam())
+# register(SnowParam(2))
+```
+
+
+## Download the data
+
+```{r, eval=FALSE}
+options(timeout=6000)
+download.file("https://ethz-ins.org/content/mouse_mm38_hippocampus.peakCounts.SE.rds", "mouse_mm38_peaks.rds", mode="wb")
+```
+
+```{r}
+se <- readRDS("mouse_mm38_peaks.rds")
+```
+
+## Prepare SE for diff analysis
+### Add info to SE
+```{r}
+se$condition = rep(c("CTRL", "FSS"), each=6)
+se$sex = rep(rep(c("female", "male"), each=3), 2)
+colnames(se) = paste0(se$condition, "_", se$sex, "_", rep(1:3, 4))
+```
+
+#### Get database of motifs
+
+```{r}
+motifs <- query(MotifDb, c("HOCOMOCOv10", "Mmusculus"))
+motifs <- do.call(TFBSTools::PWMatrixList, setNames(
+           universalmotif::convert_motifs(motifs, class="TFBSTools-PWMatrix"),
+           mcols(motifs)$providerName))
+
+genome <- BSgenome.Mmusculus.UCSC.mm10::BSgenome.Mmusculus.UCSC.mm10
+
+seqlevelsStyle(se) = "UCSC"
+```
+
+```{r}
+#Add GC bias
+se <- suppressWarnings(chromVAR::addGCBias(se, genome=genome))
+```
+
+```{r}
+#Get occurrence of each motif in each peak
+moi <- suppressWarnings(motifmatchr::matchMotifs(motifs, subject=se, genome=genome))
+```
+
+```{r}
+#Aggregate motif score per sammple
+dev <- suppressWarnings(chromVAR::computeDeviations(object = se, annotations=moi,
+                                   background_peaks=getBackgroundPeaks(se, niterations=1000)))
+#Normalize z scores
+assays(dev)$norm <- scale(assays(dev)$z)
+```
+
+```{r}
+variability <- computeVariability(dev)
+plotVariability(variability)
+```
+
+
+# Differential analysis
+
+```{r}
+dev$condition <- factor(dev$condition)
+dev$condition <- relevel(dev$condition, "CTRL")
+mm <- model.matrix(~condition, data=as.data.frame(colData(dev)))
+```
+
+## Stress analysis
+```{r}
+fit_cond <- eBayes(lmFit(assays(dev)$norm, mm))
+res_cond <- as.data.frame(topTable(fit_cond, coef="conditionFSS", number = Inf))
+head(res_cond)
+
+res_cond$TF <- row.names(res_cond)
+
+ggplot(res_cond, aes(logFC, -log10(adj.P.Val), label=TF)) + geom_text()
+```
+GCR_MOUSE.H10MO.C and ANDR_MOUSE.H10MO.B are statistically significant (alpha = 0.05) for subjects under FSS.
+
+```{r}
+metadata(dev)$anno_colors$condition <- c(CTRL="#BD36C9", FSS="#368CC9")
+metadata(dev)$anno_colors$sex <- c(female="#C97336", male="#42C936")
+
+sechm(dev, features = rownames(res_cond[res_cond$adj.P.Val < 0.05,]), assayName="norm", top_annotation = c("condition", "sex"),cluster_cols=TRUE)
+```
+
+
+From the normalized heatmap, we can see that the 2 motifs identified before are not equally expressed depending on sex: 
+ - ANDR motif seems to be more expressed in females under stress rather than in males.
+ - GCR motif seems to be equally expressed for both male and female under stress.
+
+
+## Sex analysis
+
+```{r}
+assays(dev)$norm <- scale(assays(dev)$z)
+#Define Male as baseline
+dev$sex <- factor(dev$sex)
+dev$sex <- relevel(dev$sex, "male")
+mm_sex <- model.matrix(~dev$sex)
+
+fit_sex <- eBayes(lmFit(assays(dev)$norm, mm_sex))
+res_sex <- as.data.frame(topTable(fit_sex, coef="dev$sexfemale", number = Inf))
+
+res_sex$Names <-  gsub("\\_.*","",row.names(res_sex))
+ggplot(res_sex, aes(logFC, -log10(adj.P.Val), label=Names)) + geom_text()
+```
+
+```{r}
+sechm(dev, features = rownames(res_sex[res_sex$adj.P.Val < 0.05,]), assayName="norm", top_annotation = c("sex", "depth"))
+```
+
+From the Volcano plot we can see that some motifs are more found in females than males with significant levels which is again confirm in the heatmap. Thus, differences in expression can also be independent of a the given FSS condition.
