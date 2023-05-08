@@ -23,6 +23,7 @@ suppressPackageStartupMessages({
 
 
 ```{r}
+options(timeout=1000)
 download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "atac.chr19.bam", mode="wb") 
 download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "atac.chr19.bam.bai", mode="wb")
 ```
@@ -37,7 +38,7 @@ epiwraps::bam2bw(bam, output_bw = "NF_cuts.bw", paired=TRUE, binWidth=1L, type="
 
 ```{r}
 #create mono_cuts
-epiwraps::bam2bw(bam, output_bw = "mono_cuts.bw", paired=TRUE, binWidth = 1L, type="centers", minFragLength = 140, maxFragLength = 220, shift=c(4L, -5L), forceSeqlevelsStyle = "Ensembl")
+epiwraps::bam2bw(bam, output_bw = "mono_cuts.bw", paired=TRUE, binWidth = 1L, type="center", minFragLength = 140, maxFragLength = 220, shift=c(4L, -5L), forceSeqlevelsStyle = "Ensembl")
 ```
 
 #Fetching motifs (KLF4, MAZ)

@@ -73,6 +73,8 @@ ggplot(et, aes(logFC, -log10(FDR))) + geom_point()
 
 If you think back to the biology of the dataset we are analyzing, does anything look odd to you?
 
+More protein binding when low protein is added to the sample -> Due to Normalization
+
 ## Testing alternative normalization methods
 
 ### Normalization based on library size
@@ -119,4 +121,9 @@ plotEnrichedHeatmaps(rescaleSignalMatrices(sm, nf))
 sm <- signal2Matrix(tracks, as(head(row.names(et),20),"GRanges"))
 plotEnrichedHeatmaps(rescaleSignalMatrices(sm, nf))
 ```
+
+Strongs region change the least -> with low [protein], high affinity complex can bind more
+
+Check control heatmap difference to know if normalization method is efficient
+
 
