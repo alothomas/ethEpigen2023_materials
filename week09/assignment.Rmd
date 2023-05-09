@@ -1,0 +1,17 @@
+---
+title: "Exercise week 9"
+author: "Aloïs THOMAS"
+output: html_document
+---
+
+
+
+1- Paper chosen: Histone Methyltransferase SETDB1 Regulates
+the Development of Cortical Htr3a-Positive
+Interneurons and Mood Behaviors (https://doi.org/10.1016/j.biopsych.2022.08.021)
+
+
+2- ATAC-seq of experiment ?? mice embryonic cell with Setdb1-NS-cKOs (but where to find it)
+
+
+3- The goal is to show that SETDB1 represses Htr3a transcription via RMER21B-mediated distal chromatin interaction in the embryonic ganglionic eminence of mice.
