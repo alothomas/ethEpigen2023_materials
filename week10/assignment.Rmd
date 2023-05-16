@@ -1,0 +1,92 @@
+---
+title: "assignment"
+author: "Aloïs THOMAS"
+output: html_document
+---
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(epiwraps)
+  library(ggplot2)
+  library(rGREAT)
+})
+```
+
+
+
+```{r}
+options(timeout = 1000)
+download.file("https://ethz-ins.org/content/w10.assignment.zip", "w10.assignment.zip")
+unzip("w10.assignment.zip")
+```
+
+## Prepare tracks/regions
+
+```{r}
+tracks <- list.files(pattern="bw$")
+peaks <- list.files(pattern="bed$")
+# we first import the peaks
+peaks <- lapply(peaks, rtracklayer::import.bed)
+# we'll focus on the high-quality peaks
+peaks <- lapply(peaks, FUN=function(x) x[x$score>800])
+# we get the union of non-redundant regions
+regions <- reduce(unlist(GRangesList(peaks)))
+```
+
+## Plot the signals
+
+```{r}
+ml <- signal2Matrix(tracks, regions, extend=2000)
+plotEnrichedHeatmaps(ml)
+```
+
+## Clustering
+
+```{r}
+k=4
+set.seed(123)
+cl <- clusterSignalMatrices(ml, k=k)
+mycolors <- scales::hue_pal()(k)
+names(mycolors) = 1:k
+plotEnrichedHeatmaps(ml, row_split=cl, mean_color=mycolors)
+d <- meltSignals(ml, splitBy=cl)
+#plot averages
+ggplot(d, aes(position, mean, colour=sample)) + geom_line() + facet_wrap(~split)
+```
+
+Cluster interpretation:
+
+- Cluster 1: bound mainly by CREB1, also a but of CREB3L1
+
+- Cluster 2: bound by CREB1, CREB3, CREB3L1.
+
+- Cluster 3: bound by CREB3
+
+- Cluster 4: bound by CREB1 and CREB3L1
+
+Thus, CREB1 and CREB3L1 are bound often together to the same region, while CREB3 moslty bind solely alone on its region (cluster 3).
+
+
+## Enrichment analysis (focus on cluster 3)
+
+```{r}
+# we first split the regions by cluster:
+split_regions <- split(regions, cl)
+# we send the data to the GREAT server to run an enrichment analysis
+#Focus on cluster 3
+job <- submitGreatJob(gr=split_regions[["3"]], bg=regions, species="hg38")
+res <- getEnrichmentTables(job)
+```
+
+Plot top molecular functions:
+
+```{r, fig.width=9, fig.height=6}
+bp <- res$`GO Molecular Function`
+head(bp)
+ggplot(head(bp,15), aes(Hyper_Fold_Enrichment, reorder(name, Hyper_Adjp_BH), size=Hyper_Foreground_Region_Hits, color=-log10(Hyper_Adjp_BH))) + geom_point() + scale_color_viridis_c()
+```
+
+
+The enrichment analysis for cluster 3 reveals that these regions are related to genes involved in receptor binding and activity. These receptors are mainly related to cytokines and involved in some cell death pathways.
