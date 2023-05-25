@@ -1,0 +1,133 @@
+---
+title: "Assignment Week 11"
+author: "THOMAS Aloïs"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(epiwraps)
+  library(ggplot2)
+  library(rGREAT)
+  library(AnnotationHub)
+  library(ensembldb)
+  library(bsseq)
+  library(BiocParallel)
+  library(edgeR)
+  library(DMRcate)
+  library(rtracklayer)
+  library(sechm)
+  library(pheatmap)
+  library(viridis)
+  library(data.table)
+  library(SummarizedExperiment)
+  library(limma)
+})
+set.seed(40)
+```
+
+```{r}
+bs <- readRDS("bs.rds")
+rowRanges(bs)
+pData(bs)
+```
+
+# Heatmap of the methylation levels of the genes in top 5 DMR regions
+
+```{r}
+# get the genes
+ah <- AnnotationHub()
+ensdb <- ah[["AH109336"]]
+
+chr22 <-  GRanges(seqnames=Rle(c("22")), 
+                  ranges = IRanges(1, end=195471971))
+genesChr22 <- genes(ensdb, columns=c("gene_seq_start", "gene_seq_end", "gene_name"),
+                    filter=GRangesFilter(chr22))
+seqlevelsStyle(genesChr22) <- "UCSC"
+```
+
+```{r}
+design <- model.matrix(~Type+Pair, data=pData(bs))
+
+# Differential methylation testing: 
+methdesign <- modelMatrixMeth(design)
+
+seqAnnot <- sequencing.annotate(bs, methdesign, all.cov=TRUE, coef="Typenormal")
+dmrcateRes <- dmrcate(seqAnnot, C=2, min.cpgs = 10, pcutoff=0.01)
+
+dmrRanges <- extractRanges(dmrcateRes, genome="hg38")
+saveRDS(dmrRanges, "dmr.rds")
+
+DMR.plot(dmrRanges, dmr=1,phen.col=c(rep("red", 3), rep("green",3)), CpGs=bs, genome="hg38")
+dmrRangesGenes <- dmrRanges[!is.na(dmrRanges$overlapping.genes)]
+
+# Get the coordinates of the genes in DMRs 
+topIdx <- order(dmrRangesGenes$min_smoothed_fdr)[1:4]
+genesDmr <- unlist(tstrsplit(dmrRangesGenes[topIdx]$overlapping.genes, split=", "))
+genesDmr <- genesDmr[!is.na(genesDmr)]
+dmrGenes <- genesChr22[genesChr22$gene_name %in% genesDmr]
+dmrGenes
+```
+
+```{r}
+metPr <- bsseq::getMeth(bs, 
+                        regions=dmrGenes,
+                        what="perRegion")
+colnames(metPr) <- colnames(bs)
+rownames(metPr) <- dmrGenes$gene_name
+metPr <- metPr[!is.na(rowSums(metPr)),]
+metPr
+```
+
+```{r}
+# Plot heatmap of only the most diffentially methylated
+annotationCol <- as.data.frame(pData(bs)[,c("Type","Pair")])
+rownames(annotationCol) <- colnames(metPr)
+annotationCol$Pair <- as.factor(annotationCol$Pair)
+annotationCol$Type <- relevel(as.factor(annotationCol$Type), "normal")
+pheatmap::pheatmap(metPr, 
+                   cluster_rows=TRUE,
+                   cluster_cols=FALSE,
+                   annotation_col=annotationCol,
+                   show_rownames = TRUE,
+                   color=rocket(10))
+```
+
+# Enrichment analysis of the genes
+
+```{r}
+# Top 5 DMRs genes
+job <- submitGreatJob(gr=dmrGenes, bg=genesChr22, species="hg38")
+res <- getEnrichmentTables(job)
+names(res)
+bp <- res$`GO Biological Process`
+head(bp)
+ggplot(head(bp,15), aes(Hyper_Fold_Enrichment, reorder(breakStrings(name, 10, "\n"), Hyper_Adjp_BH), size=Hyper_Foreground_Region_Hits, color=-log10(Hyper_Adjp_BH))) + geom_point() + scale_color_viridis_c(limits = c(0, 5)) + labs(title = "Biological Processes in Top 5 DMRs of Chr 22", x = "Hyper Fold Enrichment", y = "Name of the Biological Process", colour = "-log10(Hyper_Adjp_BH)", size = "Hyper Foreground Region Hits") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+# All genes in DMRs
+genesDmr_all <- unlist(tstrsplit(dmrRangesGenes$overlapping.genes, split=", "))
+genesDmr_all <- genesDmr_all[!is.na(genesDmr_all)]
+dmrGenes_all <- genesChr22[genesChr22$gene_name %in% genesDmr_all]
+job <- submitGreatJob(gr=dmrGenes_all, bg=genesChr22, species="hg38")
+res <- getEnrichmentTables(job)
+names(res)
+bp <- res$`GO Biological Process`
+head(bp)
+ggplot(head(bp,15), aes(Hyper_Fold_Enrichment, reorder(breakStrings(name, 10, "\n"), Hyper_Adjp_BH), size=Hyper_Foreground_Region_Hits, color=-log10(Hyper_Adjp_BH))) + geom_point() + scale_color_viridis_c(limits = c(0, 5)) + labs(title = "Biological Processes in all DMRs of Chr 22", x = "Hyper Fold Enrichment", y = "Name of the Biological Process", colour = "-log10(Hyper_Adjp_BH)", size = "Hyper Foreground Region Hits") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Analysis of the results
+
+
+We used BS-seq data from colon cancer samples for the DMR analysis. We limit ourselves to the analysis of chromosome 22 in which we explore methylation patterns and differential methylation regions.
+
+
+From the results we can see that in the first plot displaying the top 5 DMRs against all the genes in chromosome 22, all the adjusted p-values are significant meanng that the biological processes are significantly more represenged in the DMRs compared to the chromosome 22 genes like the process cell-cell adhesion via plasma-membrane which is extremely enriched compared to the rest of the genes of chromosome 22. This result is expected since cancer cells modify their adhesion behaviors and cell receptors interactions.
+
+In the second result, we evaluated the DMRs against all the genes of chromosome 22. From this plot we can see that the enrichment seems to be lower but with higher significance for the biological processes than the top 5 DMRs results. Since we analyzed the entirety of the DMRs, the biological processes caught are less specific and do not bring a lot of information but we again see some significance and enrichment for adhesion processes of the cell.
+
+
+Thus, cell adhesion processes seems to be modified by DNA methylation in cancer cells.
