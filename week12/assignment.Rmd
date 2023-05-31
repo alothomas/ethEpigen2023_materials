@@ -1,0 +1,77 @@
+---
+title: "Assignment Week 12"
+author: "THOMAS Aloïs"
+output: html_document
+---
+
+```{r}
+suppressWarnings(suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(AnnotationHub)
+  library(ensembldb)
+  library(InteractionSet)
+}))
+
+```
+
+# Download data
+
+```{r}
+options(timeout = 10000)
+# p300 peaks in A549 cells:
+#download.file("https://www.encodeproject.org/files/ENCFF776TFX/@@download/ENCFF776TFX.bed.gz", "p300.narrowPeak.gz")
+# interactions from Salviato et al 2021
+#download.file("https://ethz-ins.org/content/hg38.SalviatoDistalEnhancerTargets.GR.rds", "salviato.rds")
+```
+```{r}
+options(timeout=10000)
+ah <- AnnotationHub()
+ensdb <- ah[["AH95744"]] # human 104 annotation
+```
+
+## Peak loading
+
+```{r}
+peaks <- rtracklayer::import("p300.narrowPeak.gz")
+seqlevelsStyle(peaks) = "NCBI"
+
+salviato <- readRDS("salviato.rds")
+seqlevelsStyle(salviato) = "NCBI"
+
+annotatedPeaks <- suppressWarnings(epiwraps::annotateRegions(peaks, ensdb))
+```
+
+
+## Peak annotation with dist from  TSS
+
+```{r}
+peaks1 <- annotatedPeaks[abs(annotatedPeaks$distance2nearestTSS) < 10000 & abs(annotatedPeaks$distance2nearestTSS) > 2500]
+peaks2 <- annotatedPeaks[abs(annotatedPeaks$distance2nearestTSS) > 10000]
+```
+
+
+# Peaks between 2.5-10kb from a TSS
+
+```{r}
+o1 <- findOverlaps(peaks1, salviato)
+mcols(peaks1)[from(o1),"target"] <- salviato[to(o1)]$target
+mcols(peaks1)$target <- CharacterList(mcols(peaks1)$target)
+subset1 <- peaks1[unique(from(o1))]
+
+
+print(paste0("Of the genes that are between 2.5 and 10kb from the nearest TSS, ",round(sum(any(subset1$nearestTSS.gene_name == subset1$target))/length(subset1)*100,2),"% form an interaction with that nearest gene"))
+```
+
+
+
+
+# Peaks >10kb from a TSS
+
+```{r}
+o2 <- findOverlaps(peaks2, salviato)
+mcols(peaks2)[from(o2),"target"] <- salviato[to(o2)]$target
+mcols(peaks2)$target <- CharacterList(mcols(peaks2)$target)
+subset2 <- peaks2[unique(from(o2))]
+
+print(paste0("Of the genes that are more than 10kb from the nearest TSS, ",round(sum(any(subset2$nearestTSS.gene_name == subset2$target))/length(subset2)*100,2),"% form an interaction with that nearest gene"))
+```
